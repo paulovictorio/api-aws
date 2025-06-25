@@ -331,12 +331,11 @@ app.delete('/usuarios/:id', async (req, res) => {
         const result = await User.deleteOne({ _id: req.params.id });
         if (result.deletedCount === 0) {
             return res.status(404).send('Usuário não encontrado');
-        }
-
+        }        
         logInfo('Usuário removido', req);
         res.send({ message: 'Usuário removido com sucesso' });
     } catch (error) {
-        logError("Erro ao remover usuário", req, error)
+        logError("Erro ao remover usuário", req, error);
         res.status(500).send('Ocorreu um erro interno');
     }
 });
@@ -345,10 +344,7 @@ app.delete('/usuarios/:id', async (req, res) => {
 
 //#region S3 - Buckets
 AWS.config.update({
-    accessKeyId: process.env.ACCESS_KEY_ID,
-    secretAccessKey: process.env.SECRET_ACCESS_KEY,
     region: process.env.REGION,
-    sessionToken: process.env.SESSION_TOKEN,
 });
 
 const s3 = new AWS.S3();
