@@ -1,4 +1,4 @@
-name: Build and Deploy React App
+name: Build and Deploy API Backend
 
 on:
   push:
@@ -18,8 +18,24 @@ jobs:
         with:
           fetch-depth: 0
       
-      #- name: Instalar dependências
-      #  run: npm install --force
+      # Verificar se o Node.js está disponível e validar a API
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Validar estrutura da API
+        run: |
+          echo "Validando arquivos essenciais da API..."
+          if [ ! -f "server.js" ]; then
+            echo "❌ Arquivo server.js não encontrado!"
+            exit 1
+          fi
+          if [ ! -f "package.json" ]; then
+            echo "❌ Arquivo package.json não encontrado!"
+            exit 1
+          fi
+          echo "✅ Estrutura da API validada com sucesso!"
 
       - name: Instalar semver
         run: npm install -g semver
@@ -140,10 +156,10 @@ jobs:
           fi
 
 
-      - name: Criar imagem docker
+      - name: Criar imagem docker da API
         if: steps.version.outputs.should_deploy == 'true'
         run: |
-          echo "Iniciando build da imagem Docker para o repositório $REPO_NAME"
+          echo "Iniciando build da imagem Docker da API para o repositório $REPO_NAME"
           docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/$REPO_NAME:$new_version .
           docker tag ${{ secrets.DOCKERHUB_USERNAME }}/$REPO_NAME:$new_version ${{ secrets.DOCKERHUB_USERNAME }}/$REPO_NAME:latest
 
@@ -179,22 +195,23 @@ jobs:
 
     steps:
       - name: Definir o nome do repositório (caso não exista)
-        if: steps.version.outputs.repo_name == '' || steps.version.outputs.repo_name == null
+        if: needs.build.outputs.repo_name == '' || needs.build.outputs.repo_name == null
         id: define_repo_name
         run: |
           REPO_NAME="${{ github.repository }}"
           REPO_NAME="${REPO_NAME#*/}"
+          REPO_NAME=$(echo "$REPO_NAME" | tr '[:upper:]' '[:lower:]')
           echo "REPO_NAME=$REPO_NAME" >> $GITHUB_ENV 
           echo "repo_name=$REPO_NAME" >> $GITHUB_OUTPUT
           echo "Repositório: $REPO_NAME"
 
-      - name: Verificar variáveis finais
+      - name: Verificar variáveis finais da API
         run: |
           echo "DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}"
           echo "REPO_NAME: $REPO_NAME"
           echo "NEW_VERSION: ${{ needs.build.outputs.new_version }}"
           IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/$REPO_NAME:${{ needs.build.outputs.new_version }}"
-          echo "Imagem completa: $IMAGE"
+          echo "Imagem da API: $IMAGE"
 
       #- name: Debug de variáveis
       #  run: |
@@ -213,7 +230,7 @@ jobs:
       #    CONTAINER="docker run -d -p 80:80 --name $REPO_NAME ${{ secrets.DOCKERHUB_USERNAME }}/$REPO_NAME:${{ needs.build.outputs.new_version }}"
       #    echo "✅ Imagem completa: $CONTAINER"
 
-      - name: Deploy to EC2 via SSH
+      - name: Deploy API Backend to EC2 via SSH
         uses: appleboy/ssh-action@v0.1.5
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -257,7 +274,7 @@ jobs:
             echo "⬇️ Baixando nova imagem..."
             docker pull $IMAGE
 
-            echo "🚀 Subindo novo container... $REPO_NAME $IMAGE"
+            echo "🚀 Subindo novo container da API... $REPO_NAME $IMAGE"
             docker run -d -p 80:3000 \
               -e MONGO_URI="${{ secrets.MONGO_URI }}" \
               -e DB_HOST="${{ secrets.DB_HOST }}" \
@@ -267,4 +284,30 @@ jobs:
               -e REGION="${{ secrets.REGION }}" \
               -e LOG_GROUP_NAME="${{ secrets.LOG_GROUP_NAME }}" \
               -e LOG_STREAM_NAME="${{ secrets.LOG_STREAM_NAME }}" \
+              --restart=unless-stopped \
               --name $REPO_NAME $IMAGE
+
+            echo "⏳ Aguardando a API inicializar..."
+            sleep 10
+
+            echo "🔍 Verificando se a API está respondendo..."
+            for i in {1..5}; do
+              if curl -f http://localhost:80/swagger > /dev/null 2>&1; then
+                echo "✅ API está online e respondendo!"
+                echo "📊 Swagger disponível em: http://localhost:80/swagger"
+                break
+              else
+                echo "⏳ Tentativa $i/5 - API ainda não está respondendo..."
+                sleep 5
+              fi
+              if [ $i -eq 5 ]; then
+                echo "❌ API não está respondendo após 5 tentativas"
+                echo "📋 Logs do container:"
+                docker logs $REPO_NAME --tail 20
+                exit 1
+              fi
+            done
+
+            echo "🎉 Deploy da API concluído com sucesso!"
+            echo "🌐 API disponível em: http://$(curl -s ifconfig.me):80"
+            echo "📖 Documentação: http://$(curl -s ifconfig.me):80/swagger"

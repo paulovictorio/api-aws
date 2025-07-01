@@ -1,5 +1,5 @@
 # Usando a imagem oficial do Node.js
-FROM node:18-alpine as build
+FROM node:18-alpine
 
 # Diretório de trabalho dentro do container
 WORKDIR /app
@@ -8,25 +8,21 @@ WORKDIR /app
 COPY package*.json ./
 
 # Instala as dependências
-RUN npm install --force
+RUN npm install --only=production
 
-# Copia o restante dos arquivos
+# Copia o restante dos arquivos da aplicação
 COPY . .
 
-# Gera a build da aplicação React
-RUN npm run build
+# Cria um usuário não-root para executar a aplicação
+RUN addgroup -g 1001 -S nodejs
+RUN adduser -S nodejs -u 1001
 
-# Usando a imagem oficial do Nginx
-FROM nginx:stable-alpine
+# Muda a propriedade dos arquivos para o usuário nodejs
+RUN chown -R nodejs:nodejs /app
+USER nodejs
 
-# Copia os arquivos da build do React para o diretório padrão do Nginx
-COPY --from=build /app/build /usr/share/nginx/html
+# Expondo a porta 3000
+EXPOSE 3000
 
-# Copia a configuração personalizada do Nginx
-COPY nginx.conf /etc/nginx/nginx.conf
-
-# Expondo a porta 80
-EXPOSE 80
-
-# Inicia o Nginx
-CMD ["nginx", "-g", "daemon off;"]
+# Comando para iniciar a API
+CMD ["npm", "start"]
