@@ -1,12 +1,13 @@
-const cors = require('cors');
-app.use(cors());
-
 // Carregamento de variáveis
 require('dotenv').config();
 
 const express = require('express');
 const app = express();
 app.use(express.json());
+
+// CORS
+const cors = require('cors');
+app.use(cors());
 
 // MongoDB
 const mongoose = require('mongoose');
