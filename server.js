@@ -1,3 +1,6 @@
+const cors = require('cors');
+app.use(cors());
+
 // Carregamento de variáveis
 require('dotenv').config();
 
