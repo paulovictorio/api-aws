@@ -281,6 +281,7 @@ jobs:
               -e DB_PASSWORD="${{ secrets.DB_PASSWORD }}" \
               -e DB_USER="${{ secrets.DB_USER }}" \
               -e DB_PORT="${{ secrets.DB_PORT }}" \
+              -e DB_NAME="${{ secrets.DB_NAME }}" \
               -e REGION="${{ secrets.REGION }}" \
               -e LOG_GROUP_NAME="${{ secrets.LOG_GROUP_NAME }}" \
               -e LOG_STREAM_NAME="${{ secrets.LOG_STREAM_NAME }}" \
